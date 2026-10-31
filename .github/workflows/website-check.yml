@@ -18,8 +18,8 @@ jobs:
       - name: Download repository files
         uses: actions/checkout@v7
 
-      - name: Check index.html
-        run: test -f index.html
+      - name: Check index2.html
+        run: test -f index2.html
 
       - name: Check README.md
         run: test -f README.md
