@@ -1,0 +1,58 @@
+name: Website CI/CD  # Display name in the Actions tab.
+
+on:  # Defines what starts the workflow.
+  pull_request:  # Run when a PR is opened or updated, for example.
+    branches: [master]  # The PR's destination must be master.
+
+  push:  # Run when GitHub receives a push event.
+    branches: [master]  # This workflow accepts pushes to master only.
+
+permissions:  # Default permissions for the workflow token.
+  contents: read  # Allow the first job to read the repository.
+
+concurrency:  # Controls overlapping runs.
+  group: website-ci-cd-${{ github.ref }}  # Group runs by Git reference.
+  cancel-in-progress: true  # Cancel an older running workflow in the same group.
+
+jobs:  # Start the two jobs in this workflow.
+  check-and-prepare:  # First job ID; the deploy job refers to it by this name.
+    runs-on: ubuntu-latest  # Use a GitHub-hosted Ubuntu runner.
+
+    steps:  # Tasks in this job run in order by default.
+      - name: Download repository  # Start a step and give it a readable label.
+        uses: actions/checkout@v7  # Make the project files available on the runner.
+
+      - name: Check home page  # Label for the file check.
+        run: test -f index.html  # Succeed if index.html exists as a regular file.
+
+      - name: Prepare website file  # Label for preparing the file to publish.
+        run: |  # Preserve multiple shell command lines in this step.
+          mkdir -p dist  # Create the output folder if it does not exist.
+          cp index.html dist/  # Copy the page into dist; leave the original in place.
+
+      - name: Upload website file  # Label for packaging and handing off the output.
+        if: github.event_name == 'push'  # Skip upload on PR runs.
+        uses: actions/upload-pages-artifact@v4  # Package the website as a Pages artifact.
+        with:  # Inputs for the upload action.
+          path: dist  # Upload the contents of dist.
+
+  deploy:  # Second job ID; this job publishes the prepared page.
+    needs: check-and-prepare  # Wait for the first job to succeed.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'  # Require both push and master.
+    runs-on: ubuntu-latest  # Use a separate GitHub-hosted Ubuntu runner.
+
+    permissions:  # Set permissions for this job.
+      pages: write  # Allow publishing to GitHub Pages.
+      id-token: write  # Allow requesting an identity token for deployment.
+
+    environment:  # Identify where the website is deployed.
+      name: github-pages  # Use the environment named github-pages.
+      url: ${{ steps.deployment.outputs.page_url }}  # Display the URL returned by the publishing step.
+
+    steps:  # Start the deployment job's tasks.
+      - name: Configure GitHub Pages  # Label for the Pages setup step.
+        uses: actions/configure-pages@v5  # Read the Pages configuration.
+
+      - name: Deploy website  # Label for the publishing step.
+        id: deployment  # Give the step an ID so the URL line can find its output.
+        uses: actions/deploy-pages@v4  # Publish the uploaded Pages artifact.
